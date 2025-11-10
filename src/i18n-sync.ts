@@ -168,7 +168,7 @@ async function translateAndApply(
 
         for (const { key } of batch) {
             process.stdout.write(
-                `\r[i18n] ${sourceFile}: ${batchIndex}/${totalBatches} (${percent}%) → ${key
+                `\r[i18n] ${targetFile}: ${batchIndex}/${totalBatches} (${percent}%) → ${key
                     .join(".")
                     .padEnd(60)}`
             );

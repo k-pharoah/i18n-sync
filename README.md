@@ -1,3 +1,5 @@
+# 🈯 i18n-sync CLI
+
 A lightweight CLI tool that scans a **source JSON file** (e.g. `en.json`) to **detect and fill missing translation keys** across locale files.
 
 > ⚙️ Requires `OPENAI_API_KEY` in your `.env`

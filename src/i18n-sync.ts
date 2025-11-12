@@ -18,9 +18,13 @@ async function main(): Promise<void> {
     let totalAdded = 0;
     let totalTranslated = 0;
 
-    const i18nDir = await resolveI18nDir(process.cwd());
+    const i18nDir = await findTargetFolder(process.cwd(), "i18n");
+    if (!i18nDir) {
+        throw new Error("Could not find i18n directory");
+    }
+
     const sourceJson: JsonObject = JSON.parse(
-        await readFile(path.join(i18nDir, sourceFileName), "utf8")
+        await readFile(path.join(i18nDir as string, sourceFileName), "utf8")
     );
 
     const localeFileNames = (await readdir(i18nDir)).filter(
@@ -92,61 +96,6 @@ async function main(): Promise<void> {
             `Done. Added ${totalAdded}. Translated ${totalTranslated}.`
         );
         process.exit(0);
-    }
-}
-
-async function resolveI18nDir(cwd: string): Promise<string> {
-    const candidates = [
-        path.resolve(cwd, "src/assets/i18n"),
-        path.resolve(cwd, "assets/i18n"),
-        path.resolve(cwd, "i18n"),
-    ];
-    for (const candidate of candidates) {
-        try {
-            await access(candidate);
-            return candidate;
-        } catch {}
-    }
-    throw new Error(
-        `Could not find i18n directory (tried ${candidates.join(", ")})`
-    );
-}
-
-function addMissingKeys(
-    source: JsonObject,
-    target: JsonObject,
-    keyPath: string[],
-    keys: TranslationKey[]
-): void {
-    for (const [key, sourceValue] of Object.entries(source)) {
-        const currentPath = [...keyPath, key];
-        const targetValue = (target as any)[key];
-
-        if (isTypeObject(sourceValue)) {
-            if (!isTypeObject(targetValue)) {
-                (target as any)[key] = {};
-            }
-
-            addMissingKeys(
-                sourceValue as JsonObject,
-                (target as any)[key] as JsonObject,
-                currentPath,
-                keys
-            );
-
-            continue;
-        }
-
-        if (typeof sourceValue !== "string") {
-            continue;
-        }
-
-        if (typeof targetValue === "string" && targetValue.length > 0) {
-            continue;
-        }
-
-        (target as any)[key] = "";
-        keys.push({ key: currentPath, value: sourceValue });
     }
 }
 
@@ -243,8 +192,27 @@ async function translateAndApply(
     return totalApplied;
 }
 
-function isTypeObject(value: unknown): value is JsonObject {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
+async function findTargetFolder(
+    startDir: string,
+    targetDir: string
+): Promise<string | null> {
+    for (const entry of await readdir(startDir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) {
+            continue;
+        }
+
+        const fullPath = path.join(startDir, entry.name);
+        if (entry.name === targetDir) {
+            return fullPath;
+        }
+
+        const found = await findTargetFolder(fullPath, targetDir);
+        if (found) {
+            return found;
+        }
+    }
+
+    return null;
 }
 
 async function callOpenAiTranslateBatch(
@@ -349,6 +317,48 @@ async function fetchWithTimeout(url: string, init: any) {
     } finally {
         clearTimeout(timer);
     }
+}
+
+function addMissingKeys(
+    source: JsonObject,
+    target: JsonObject,
+    keyPath: string[],
+    keys: TranslationKey[]
+): void {
+    for (const [key, sourceValue] of Object.entries(source)) {
+        const currentPath = [...keyPath, key];
+        const targetValue = (target as any)[key];
+
+        if (isTypeObject(sourceValue)) {
+            if (!isTypeObject(targetValue)) {
+                (target as any)[key] = {};
+            }
+
+            addMissingKeys(
+                sourceValue as JsonObject,
+                (target as any)[key] as JsonObject,
+                currentPath,
+                keys
+            );
+
+            continue;
+        }
+
+        if (typeof sourceValue !== "string") {
+            continue;
+        }
+
+        if (typeof targetValue === "string" && targetValue.length > 0) {
+            continue;
+        }
+
+        (target as any)[key] = "";
+        keys.push({ key: currentPath, value: sourceValue });
+    }
+}
+
+function isTypeObject(value: unknown): value is JsonObject {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 main().catch((error) => {
